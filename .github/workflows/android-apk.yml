@@ -59,8 +59,10 @@ jobs:
 
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
-          yes | "$SDKMANAGER" \
-            --sdk_root="$ANDROID_HOME" --licenses
+          set +o pipefail
+yes | "$SDKMANAGER" \
+  --sdk_root="$ANDROID_HOME" --licenses
+set -o pipefail
 
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
             "platform-tools" \
