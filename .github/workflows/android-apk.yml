@@ -60,9 +60,8 @@ jobs:
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
           set +o pipefail
-yes | "$SDKMANAGER" \
-  --sdk_root="$ANDROID_HOME" --licenses
-set -o pipefail
+          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          set -o pipefail
 
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
             "platform-tools" \
@@ -83,13 +82,12 @@ set -o pipefail
           set -e
 
           SETTINGS_FILE=$(find source -type f \
-            \( -name settings.gradle \
-            -o -name settings.gradle.kts \) \
+            \( -name settings.gradle -o -name settings.gradle.kts \) \
             -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
             echo "ERROR: Gradle settings file not found."
-            find source -maxdepth 4 -type f
+            find source -maxdepth 5 -type f
             exit 1
           fi
 
