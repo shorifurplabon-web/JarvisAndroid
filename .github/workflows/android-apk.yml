@@ -4,7 +4,8 @@ name: Build Jarvis APK
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 permissions:
   contents: read
@@ -28,24 +29,60 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Install Android SDK
+      - name: Install Android SDK and accept licenses
+        shell: bash
         run: |
+          set -e
+
+          export ANDROID_HOME="$HOME/android-sdk"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
+
           sudo apt-get update
-          sudo apt-get install -y android-sdk
-          echo "ANDROID_HOME=/usr/lib/android-sdk" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=/usr/lib/android-sdk" >> "$GITHUB_ENV"
-          echo "/usr/lib/android-sdk/platform-tools" >> "$GITHUB_PATH"
+          sudo apt-get install -y wget unzip
+
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          mkdir -p /tmp/android-tools
+
+          wget -q \
+            https://dl.google.com/android/repository/commandlinetools-linux-12266719_latest.zip \
+            -O /tmp/cmdline-tools.zip
+
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/android-tools
+
+          mv /tmp/android-tools/cmdline-tools \
+            "$ANDROID_HOME/cmdline-tools/latest"
+
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+          yes | "$SDKMANAGER" \
+            --sdk_root="$ANDROID_HOME" --licenses
+
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" \
+            "platform-tools" \
+            "platforms;android-35" \
+            "build-tools;34.0.0"
 
       - name: Extract project
+        shell: bash
         run: |
+          set -e
           test -f JarvisAndroid_CloudBuild.zip
           mkdir -p source
           unzip -q JarvisAndroid_CloudBuild.zip -d source
 
       - name: Locate Android project
+        shell: bash
         run: |
+          set -e
+
           SETTINGS_FILE=$(find source -type f \
-            \( -name settings.gradle -o -name settings.gradle.kts \) \
+            \( -name settings.gradle \
+            -o -name settings.gradle.kts \) \
             -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
@@ -56,12 +93,16 @@ jobs:
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
-          echo "Found project: $PROJECT_DIR"
+
+          echo "Android project found at: $PROJECT_DIR"
+          ls -la "$PROJECT_DIR"
 
       - name: Build APK
+        shell: bash
         run: |
+          set -e
           cd "$PROJECT_DIR"
-          gradle --no-daemon assembleDebug
+          gradle :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
