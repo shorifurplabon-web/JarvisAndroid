@@ -29,14 +29,12 @@ jobs:
         with:
           gradle-version: "8.9"
 
-      - name: Install Android SDK and accept licenses
+      - name: Install Android SDK
         shell: bash
         run: |
           set -e
-
           export ANDROID_HOME="$HOME/android-sdk"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
-
           echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
@@ -53,7 +51,6 @@ jobs:
             -O /tmp/cmdline-tools.zip
 
           unzip -q /tmp/cmdline-tools.zip -d /tmp/android-tools
-
           mv /tmp/android-tools/cmdline-tools \
             "$ANDROID_HOME/cmdline-tools/latest"
 
@@ -80,29 +77,43 @@ jobs:
         shell: bash
         run: |
           set -e
-
           SETTINGS_FILE=$(find source -type f \
             \( -name settings.gradle -o -name settings.gradle.kts \) \
             -print -quit)
 
           if [ -z "$SETTINGS_FILE" ]; then
-            echo "ERROR: Gradle settings file not found."
-            find source -maxdepth 5 -type f
+            echo "Gradle settings file not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS_FILE")
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          echo "Android project found at: $PROJECT_DIR"
-          ls -la "$PROJECT_DIR"
+      - name: Align Java and Kotlin targets
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/jvm17.init.gradle" <<'EOF'
+          allprojects {
+            tasks.withType(org.gradle.api.tasks.compile.JavaCompile).configureEach {
+              sourceCompatibility = '17'
+              targetCompatibility = '17'
+            }
+
+            tasks.configureEach { task ->
+              if (task.name.toLowerCase().contains('kotlin') &&
+                  task.hasProperty('kotlinOptions')) {
+                task.kotlinOptions.jvmTarget = '17'
+              }
+            }
+          }
+          EOF
 
       - name: Build APK
         shell: bash
         run: |
           set -e
           cd "$PROJECT_DIR"
-          gradle :app:assembleDebug
+          gradle -I "$RUNNER_TEMP/jvm17.init.gradle" :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
